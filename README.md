@@ -120,11 +120,16 @@ of `native/`.
 
 ## Building
 
-Needs a JDK (17 or later to run Gradle), CMake 3.20+ and a C++17 compiler.
+Needs a JDK (17 or later to run Gradle), CMake 3.20+, a C++17 compiler, and
+the core's sources, which are not in this repository: a checkout of
+[apex-sdk-core](https://github.com/PixoVR/apex-sdk-core) or its source release.
 
 ```sh
-./gradlew build      # this machine's native library, the JAR, unit tests and the smoke tests
+./gradlew build -PapexCoreDir=../apex-sdk-core   # this machine's native library, the JAR, unit tests and the smoke tests
 ```
+
+**CI does not have the core yet**, so it fails until it is given a way to
+fetch it.
 
 `./gradlew build` packs only this machine's library. CI builds every
 platform and packs them all into one JAR (`.github/workflows/ci.yml`):
@@ -141,7 +146,7 @@ platform and packs them all into one JAR (`.github/workflows/ci.yml`):
 - `ApexClientTest` (JUnit): the client offline (results on poll, callbacks,
   cancel, network errors, threads, UTF-8, closing from a callback).
 - `smokeFake`, `smokeFakeXapi`: `SmokeTest` runs every call against the core's
-  fake platform (`native/apex-sdk-core/tools/smoke/fake_apex.py`, needs
+  fake platform (`tools/smoke/fake_apex.py` in apex-sdk-core, needs
   Python 3), which checks each request; once with data sessions, once with
   xAPI.
 
@@ -152,18 +157,12 @@ platform and packs them all into one JAR (`.github/workflows/ci.yml`):
 | `src/main/java/com/pixovr/apex/` | The API (`ApexClient`, `ApexConfig`, `ApexCall`, `ApexResult`, the enums) and `ApexNativeLibrary`, which finds and loads the library |
 | `native/src/ApexJavaJni.c` | The JNI bridge to the core's C interface (`Apex.h`) |
 | `native/CMakeLists.txt` | Builds `apex_java`: the bridge with the core linked in statically, exporting only `JNI_OnLoad` |
-| `native/apex-sdk-core/` | The core's sources, vendored; `REVISION` names the version and commit |
-| `tools/update_core.sh` | Replaces the vendored core with another apex-sdk-core revision |
 
 ## Updating the core
 
-```sh
-tools/update_core.sh ../apex-sdk-core v0.3.0
-```
-
-If the new core changes `include/apex/Apex.h`, update the bridge
-(`ApexJavaJni.c`, `ApexNativeBridge.java`, `EXPECTED_ABI_MINOR`) and
-`ApexClient` to match.
+Build against the new apex-sdk-core revision (`-PapexCoreDir`). If it changes
+`include/apex/Apex.h`, update the bridge (`ApexJavaJni.c`,
+`ApexNativeBridge.java`, `EXPECTED_ABI_MINOR`) and `ApexClient` to match.
 
 ## Releasing
 

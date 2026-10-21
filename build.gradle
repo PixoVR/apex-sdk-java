@@ -46,6 +46,18 @@ dependencies {
 // -- native libraries ---------------------------------------------------------
 
 def nativesDirectory = layout.buildDirectory.dir('natives')
+
+// The core's sources are not in this repository. Point the build at an
+// apex-sdk-core checkout or source release with -PapexCoreDir=... or the
+// APEX_CORE_DIR environment variable. Builds from prebuilt libraries
+// (-PprebuiltNatives) need it only for the smoke tests' fake platform.
+def apexCoreDirectory = {
+    def coreDirectory = project.findProperty('apexCoreDir') ?: System.getenv('APEX_CORE_DIR')
+    if (!coreDirectory) {
+        throw new GradleException('Set -PapexCoreDir (or APEX_CORE_DIR) to an apex-sdk-core checkout or source release.')
+    }
+    return file(coreDirectory)
+}
 def hostBuildDirectory = layout.buildDirectory.dir('native-host')
 
 static String desktopPlatform() {
@@ -78,6 +90,9 @@ def configureHostNatives = tasks.register('configureHostNatives', Exec) {
     description = 'Configures the native library build for this machine (needs CMake, a C++ compiler and a JDK).'
     def cmakeArguments = ['cmake', '-S', file('native').absolutePath, '-B', hostBuildDirectory.get().asFile.absolutePath,
                           '-DCMAKE_BUILD_TYPE=Release']
+    doFirst {
+        args "-DAPEX_CORE_DIR=${apexCoreDirectory().absolutePath}"
+    }
     if (desktopPlatform() == 'macos') {
         cmakeArguments += ['-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0']
     }
@@ -134,7 +149,7 @@ tasks.named('test') {
 }
 
 // The smoke test's calls through ApexClient against the core's fake platform,
-// which checks every request (native/apex-sdk-core/tools/smoke/fake_apex.py).
+// which checks every request (tools/smoke/fake_apex.py in apex-sdk-core).
 ['': [], 'Xapi': ['--xapi']].each { taskSuffix, fakeOptions ->
     def smokeTask = tasks.register("smokeFake${taskSuffix}", Exec) {
         description = "Runs SmokeTest against the fake Apex platform${taskSuffix ? ' with xAPI sessions' : ''}."
@@ -142,7 +157,7 @@ tasks.named('test') {
         dependsOn tasks.named('testClasses')
         def python = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows') ? 'python' : 'python3'
         doFirst {
-            commandLine([python, file('native/apex-sdk-core/tools/smoke/fake_apex.py').absolutePath] + fakeOptions +
+            commandLine([python, new File(apexCoreDirectory(), 'tools/smoke/fake_apex.py').absolutePath] + fakeOptions +
                 ['run', '--', "${System.getProperty('java.home')}/bin/java", '-cp',
                  sourceSets.test.runtimeClasspath.asPath, 'com.pixovr.apex.SmokeTest'])
         }

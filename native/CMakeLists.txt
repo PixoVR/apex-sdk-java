@@ -1,5 +1,6 @@
 # Builds the SDK's native library, apex_java: the JNI bridge (src/ApexJavaJni.c)
-# with the vendored core (apex-sdk-core/) linked in statically.
+# with apex-sdk-core linked in statically. The core's sources are not in this
+# repository: APEX_CORE_DIR names an apex-sdk-core checkout or source release.
 #
 # The core is built with its "ANDROID" backend on every platform: despite the
 # name, it sends requests through java.net.HttpURLConnection over JNI, so it
@@ -20,7 +21,12 @@ set(APEX_SHARED OFF CACHE BOOL "" FORCE)
 set(APEX_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(APEX_BUILD_SMOKE OFF CACHE BOOL "" FORCE)
 set(APEX_TRANSPORT ANDROID CACHE STRING "" FORCE)
-add_subdirectory(apex-sdk-core)
+set(APEX_CORE_DIR "" CACHE PATH "An apex-sdk-core checkout or source release")
+if(NOT EXISTS "${APEX_CORE_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR "Set APEX_CORE_DIR to an apex-sdk-core checkout or source release "
+    "(for example -DAPEX_CORE_DIR=../apex-sdk-core).")
+endif()
+add_subdirectory(${APEX_CORE_DIR} apex-sdk-core)
 
 add_library(apex_java SHARED src/ApexJavaJni.c)
 target_link_libraries(apex_java PRIVATE apex_core)
