@@ -1,0 +1,176 @@
+// apex-sdk-java: the Java API, with the native library (native/) for every
+// platform packed into one JAR.
+//
+//   gradle build                 builds the native library for this machine, the JAR, and runs the tests
+//   gradle jar -PprebuiltNatives builds the JAR from libraries already in build/natives (what CI does)
+//
+// The JAR's native layout (see ApexNativeLibrary):
+//   natives/<platform>/<library>   desktops: linux-x86_64, linux-aarch64, windows-x86_64, macos
+//   lib/<abi>/libapex_java.so      Android: arm64-v8a, x86_64
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.pixovr'
+version = '0.1.0'
+description = 'Java SDK for the Apex platform, with apex-sdk-core bundled for desktops and Android'
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // Java 8 bytecode, which Android and every current JVM load.
+    options.release = 8
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:all', '-Xlint:-options', '-Werror']
+}
+
+javadoc {
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// -- native libraries ---------------------------------------------------------
+
+def nativesDirectory = layout.buildDirectory.dir('natives')
+def hostBuildDirectory = layout.buildDirectory.dir('native-host')
+
+static String desktopPlatform() {
+    String osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    if (osName.startsWith('mac')) {
+        return 'macos'
+    }
+    String osArchitecture = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+    String cpuArchitecture = osArchitecture in ['amd64', 'x86_64'] ? 'x86_64'
+        : osArchitecture in ['aarch64', 'arm64'] ? 'aarch64' : osArchitecture
+    String operatingSystem = osName.startsWith('windows') ? 'windows' : 'linux'
+    return "${operatingSystem}-${cpuArchitecture}"
+}
+
+static String libraryFileName(String platform) {
+    return platform.startsWith('windows') ? 'apex_java.dll'
+        : platform == 'macos' ? 'libapex_java.dylib' : 'libapex_java.so'
+}
+
+def expectedNatives = [
+    'natives/linux-x86_64/libapex_java.so',
+    'natives/linux-aarch64/libapex_java.so',
+    'natives/windows-x86_64/apex_java.dll',
+    'natives/macos/libapex_java.dylib',
+    'lib/arm64-v8a/libapex_java.so',
+    'lib/x86_64/libapex_java.so',
+]
+
+def configureHostNatives = tasks.register('configureHostNatives', Exec) {
+    description = 'Configures the native library build for this machine (needs CMake, a C++ compiler and a JDK).'
+    def cmakeArguments = ['cmake', '-S', file('native').absolutePath, '-B', hostBuildDirectory.get().asFile.absolutePath,
+                          '-DCMAKE_BUILD_TYPE=Release']
+    if (desktopPlatform() == 'macos') {
+        cmakeArguments += ['-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0']
+    }
+    commandLine cmakeArguments
+    inputs.file('native/CMakeLists.txt')
+    outputs.file(hostBuildDirectory.map { it.file('CMakeCache.txt') })
+}
+
+def buildHostNatives = tasks.register('buildHostNatives', Exec) {
+    description = 'Builds the native library for this machine into build/natives.'
+    dependsOn configureHostNatives
+    commandLine 'cmake', '--build', hostBuildDirectory.get().asFile.absolutePath, '--config', 'Release', '--parallel'
+    inputs.dir('native')
+    def platform = desktopPlatform()
+    def libraryName = libraryFileName(platform)
+    outputs.file(nativesDirectory.map { it.file("natives/${platform}/${libraryName}") })
+    doLast {
+        def builtLibrary = fileTree(hostBuildDirectory) { include "**/${libraryName}" }.singleFile
+        copy {
+            from builtLibrary
+            into nativesDirectory.map { it.dir("natives/${platform}") }
+        }
+    }
+}
+
+def checkNatives = tasks.register('checkNatives') {
+    description = 'Fails unless build/natives holds the library for every supported platform.'
+    doLast {
+        def missing = expectedNatives.findAll { !nativesDirectory.get().file(it).asFile.isFile() }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Missing native libraries in build/natives: ${missing.join(', ')}")
+        }
+    }
+}
+
+// Into the main JAR only, not the sources JAR.
+tasks.named('processResources') {
+    from(nativesDirectory)
+    if (project.hasProperty('prebuiltNatives')) {
+        dependsOn checkNatives
+    } else {
+        dependsOn buildHostNatives
+    }
+}
+
+// -- tests ----------------------------------------------------------------------
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging {
+        events = ['failed']
+        exceptionFormat = 'full'
+    }
+}
+
+// The smoke test's calls through ApexClient against the core's fake platform,
+// which checks every request (native/apex-sdk-core/tools/smoke/fake_apex.py).
+['': [], 'Xapi': ['--xapi']].each { taskSuffix, fakeOptions ->
+    def smokeTask = tasks.register("smokeFake${taskSuffix}", Exec) {
+        description = "Runs SmokeTest against the fake Apex platform${taskSuffix ? ' with xAPI sessions' : ''}."
+        group = 'verification'
+        dependsOn tasks.named('testClasses')
+        def python = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows') ? 'python' : 'python3'
+        doFirst {
+            commandLine([python, file('native/apex-sdk-core/tools/smoke/fake_apex.py').absolutePath] + fakeOptions +
+                ['run', '--', "${System.getProperty('java.home')}/bin/java", '-cp',
+                 sourceSets.test.runtimeClasspath.asPath, 'com.pixovr.apex.SmokeTest'])
+        }
+    }
+    tasks.named('check') { dependsOn smokeTask }
+}
+
+// -- publishing -------------------------------------------------------------------
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            pom {
+                name = 'apex-sdk-java'
+                description = project.description
+                url = 'https://github.com/PixoVR/apex-sdk-java'
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'GitHubPackages'
+            url = 'https://maven.pkg.github.com/PixoVR/apex-sdk-java'
+            credentials {
+                username = System.getenv('GITHUB_ACTOR')
+                password = System.getenv('GITHUB_TOKEN')
+            }
+        }
+    }
+}

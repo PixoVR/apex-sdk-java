@@ -1,0 +1,158 @@
+name: CI
+
+# Builds the native library on every platform, runs the tests where they can run,
+# and packs everything into one JAR. Tags v* publish it as a GitHub release and to
+# GitHub Packages.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.platform }} (build and test)
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04 keeps the glibc requirement at 2.35.
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+          - platform: linux-aarch64
+            runner: ubuntu-22.04-arm
+          - platform: windows-x86_64
+            runner: windows-2022
+          - platform: macos
+            runner: macos-14
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the native library, the JAR, unit tests and the smoke test against the fake platform
+        run: ./gradlew build --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-${{ matrix.platform }}
+          path: build/natives/
+          if-no-files-found: error
+
+  android:
+    name: android (${{ matrix.abi }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          echo "NDK=$NDK" >> "$GITHUB_ENV"
+          cmake -S native -B build/native-android -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-24 -DANDROID_STL=c++_static \
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+          cmake --build build/native-android --parallel
+      - name: Strip and check the library
+        run: |
+          BIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          LIBRARY=build/native-android/libapex_java.so
+          "$BIN/llvm-strip" --strip-unneeded "$LIBRARY"
+          echo "Exported symbols:"
+          "$BIN/llvm-readelf" --dyn-syms --wide "$LIBRARY" | awk '$5 == "GLOBAL" && $7 != "UND" {print $8}' | sort | tee exports.txt
+          if grep -vE '^JNI_OnLoad' exports.txt; then echo "Unexpected exports" && exit 1; fi
+          echo "LOAD segment alignment:"
+          "$BIN/llvm-readelf" -lW "$LIBRARY" | awk '$1 == "LOAD" {print $NF}' | tee align.txt
+          if grep -v '0x4000' align.txt; then echo "Not 16 KB aligned" && exit 1; fi
+          mkdir -p "build/natives/lib/${{ matrix.abi }}"
+          cp "$LIBRARY" "build/natives/lib/${{ matrix.abi }}/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-android-${{ matrix.abi }}
+          path: build/natives/
+          if-no-files-found: error
+
+  package:
+    name: package (one JAR, every platform)
+    needs: [desktop, android]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: natives-*
+          path: build/natives
+          merge-multiple: true
+      - name: Build the JAR from the prebuilt libraries
+        run: ./gradlew jar sourcesJar javadocJar testClasses -PprebuiltNatives --console=plain
+      - name: Check the JAR
+        run: |
+          JAR="build/libs/apex-sdk-java-$(./gradlew -q properties --property version | awk '/^version:/ {print $2}').jar"
+          echo "JAR=$JAR" >> "$GITHUB_ENV"
+          unzip -l "$JAR" | grep -E 'natives/|lib/'
+          for library in natives/linux-x86_64/libapex_java.so natives/linux-aarch64/libapex_java.so \
+              natives/windows-x86_64/apex_java.dll natives/macos/libapex_java.dylib \
+              lib/arm64-v8a/libapex_java.so lib/x86_64/libapex_java.so; do
+            unzip -l "$JAR" "$library" > /dev/null || { echo "missing $library" && exit 1; }
+          done
+      - name: Smoke test the packaged JAR against the fake platform
+        run: |
+          python3 native/apex-sdk-core/tools/smoke/fake_apex.py run -- \
+            java -cp "$JAR:build/classes/java/test" com.pixovr.apex.SmokeTest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apex-sdk-java
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: natives-*
+          path: build/natives
+          merge-multiple: true
+      - name: Check the tag matches the version
+        run: |
+          VERSION=$(./gradlew -q properties --property version | awk '/^version:/ {print $2}')
+          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, version $VERSION" && exit 1; }
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./gradlew publish -PprebuiltNatives --console=plain
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/libs/*.jar --title "$GITHUB_REF_NAME" --generate-notes

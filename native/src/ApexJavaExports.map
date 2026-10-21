@@ -1,0 +1,9 @@
+/* Exports only JNI_OnLoad, which registers every native method. The core and
+ * the C++ runtime inside the library stay hidden, so they cannot clash with
+ * other native code in the process. */
+{
+global:
+	JNI_OnLoad;
+local:
+	*;
+};
