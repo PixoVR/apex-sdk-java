@@ -120,34 +120,36 @@ of `native/`.
 
 ## Building
 
-Needs a JDK (17 or later to run Gradle), CMake 3.20+, a C++17 compiler, and
-the core's sources, which are not in this repository: a checkout of
-[apex-sdk-core](https://github.com/PixoVR/apex-sdk-core) or its source release.
+Needs a JDK (17 or later to run Gradle), CMake 3.20+, a C compiler and
+Python 3 for the smoke tests. The core is already in the repository, compiled
+(`native/apex-sdk-core/`, see [Updating the core](#updating-the-core)), so
+nothing else is needed: no apex-sdk-core checkout or token.
 
 ```sh
-./gradlew build -PapexCoreDir=../apex-sdk-core   # this machine's native library, the JAR, unit tests and the smoke tests
+./gradlew build                                   # this machine's native library, the JAR, unit tests and the smoke tests
+./gradlew build -PapexCoreDir=../apex-sdk-core    # the same, with the core built from an apex-sdk-core checkout
 ```
-
-**CI does not have the core yet**, so it fails until it is given a way to
-fetch it.
 
 `./gradlew build` packs only this machine's library. CI builds every
 platform and packs them all into one JAR (`.github/workflows/ci.yml`):
 
 | Job | Does |
 | --- | --- |
+| `core-kit` | Checks that `native/apex-sdk-core/` holds no core source, its `SHA256SUMS`, and that its Android NDK is the one CI links with |
 | `desktop` (Linux x86_64 and aarch64, Windows, macOS) | Builds the library and runs every test on that platform |
-| `android` (arm64-v8a, x86_64) | NDK build; checks that only `JNI_OnLoad` is exported and that the library is 16 KB page aligned |
+| `android` (arm64-v8a, x86_64) | NDK build (pinned to the kit's NDK, `APEX_JAVA_NDK_VERSION`); checks that only `JNI_OnLoad` is exported and that the library is 16 KB page aligned |
 | `package` | Packs all six libraries into one JAR (`./gradlew jar -PprebuiltNatives`), checks it, and runs the smoke test from that JAR |
 | `release` (tags `v*`) | Publishes the JARs to GitHub Packages and as a GitHub release |
 
 ### Tests
 
+- `ApexCoreKitTest` (JUnit): the committed `Apex.h` has the ABI version the
+  bridge expects (`ApexNativeBridge.EXPECTED_ABI_MAJOR` / `MINOR`).
 - `ApexClientTest` (JUnit): the client offline (results on poll, callbacks,
   cancel, network errors, threads, UTF-8, closing from a callback).
 - `smokeFake`, `smokeFakeXapi`: `SmokeTest` runs every call against the core's
-  fake platform (`tools/smoke/fake_apex.py` in apex-sdk-core, needs
-  Python 3), which checks each request; once with data sessions, once with
+  fake platform (`native/apex-sdk-core/testkit/tools/smoke/fake_apex.py`, from
+  apex-sdk-core; needs Python 3), which checks each request; once with data sessions, once with
   xAPI.
 
 ## Layout
@@ -157,12 +159,28 @@ platform and packs them all into one JAR (`.github/workflows/ci.yml`):
 | `src/main/java/com/pixovr/apex/` | The API (`ApexClient`, `ApexConfig`, `ApexCall`, `ApexResult`, the enums) and `ApexNativeLibrary`, which finds and loads the library |
 | `native/src/ApexJavaJni.c` | The JNI bridge to the core's C interface (`Apex.h`) |
 | `native/CMakeLists.txt` | Builds `apex_java`: the bridge with the core linked in statically, exporting only `JNI_OnLoad` |
+| `native/apex-sdk-core/` | The compiled core: `include/apex/Apex.h`, `lib/<platform>/` static libraries (`linux-x86_64`, `linux-aarch64`, `windows-x86_64`, `macos`, `android-arm64-v8a`, `android-x86_64`), the fake platform under `testkit/`, `VERSION`, `SHA256SUMS`, `THIRD_PARTY_NOTICES.md` (also packed into the JAR's `META-INF/`) |
+| `tools/update_core.sh` | Replaces `native/apex-sdk-core/` with a kit from apex-sdk-core |
 
 ## Updating the core
 
-Build against the new apex-sdk-core revision (`-PapexCoreDir`). If it changes
-`include/apex/Apex.h`, update the bridge (`ApexJavaJni.c`,
-`ApexNativeBridge.java`, `EXPECTED_ABI_MINOR`) and `ApexClient` to match.
+apex-sdk-core's CI builds the kit (job `java-kit`: the static libraries with
+the java.net backend for all six platforms, `Apex.h` and the smoke-test kit) and
+attaches it to each release as `apex-sdk-core-java-static-<tag>.zip`. To take a
+new core:
+
+```sh
+tools/update_core.sh v0.3.0          # or --run <apex-sdk-core CI run ID>, or a downloaded zip
+./gradlew build
+```
+
+The script checks the kit's checksums and that it holds no source. If the new
+`Apex.h` changes the ABI, update the bridge (`ApexJavaJni.c`,
+`ApexNativeBridge.java`, `EXPECTED_ABI_MINOR`) and `ApexClient` to match
+(`ApexCoreKitTest` fails until you do). If `androidNdk` in
+`native/apex-sdk-core/VERSION` changed, set `APEX_JAVA_NDK_VERSION` in
+`.github/workflows/ci.yml` to it. Commit the whole `native/apex-sdk-core/`
+directory in one commit.
 
 ## Releasing
 

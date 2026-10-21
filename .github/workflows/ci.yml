@@ -14,7 +14,28 @@ on:
 permissions:
   contents: read
 
+env:
+  # The NDK the committed Android core libraries were built with (androidNdk in
+  # native/apex-sdk-core/VERSION). They are linked with c++_static, so it must match.
+  APEX_JAVA_NDK_VERSION: "27.2.12479018"
+
 jobs:
+  core-kit:
+    name: core kit (compiled only, checksums, NDK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: No apex-sdk-core source in the repository
+        run: |
+          SOURCES=$(git ls-files 'native/apex-sdk-core/**' | grep -E '\.(c|cc|cpp|cxx|hpp|hh|inl)$|/src/|/third_party/' || true)
+          if [ -n "$SOURCES" ]; then echo "apex-sdk-core sources must not be committed:" && echo "$SOURCES" && exit 1; fi
+      - name: Checksums
+        run: cd native/apex-sdk-core && sha256sum --check --strict SHA256SUMS
+      - name: The kit's NDK is the one CI links with
+        run: |
+          KIT_NDK=$(sed -n 's/^androidNdk=//p' native/apex-sdk-core/VERSION)
+          test "$KIT_NDK" = "$APEX_JAVA_NDK_VERSION" || { echo "kit NDK $KIT_NDK, CI NDK $APEX_JAVA_NDK_VERSION" && exit 1; }
+
   desktop:
     name: ${{ matrix.platform }} (build and test)
     runs-on: ${{ matrix.runner }}
@@ -60,9 +81,11 @@ jobs:
         abi: [arm64-v8a, x86_64]
     steps:
       - uses: actions/checkout@v4
+      - name: Install the NDK
+        run: echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$APEX_JAVA_NDK_VERSION" > /dev/null
       - name: Build
         run: |
-          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          NDK="$ANDROID_HOME/ndk/$APEX_JAVA_NDK_VERSION"
           echo "NDK=$NDK" >> "$GITHUB_ENV"
           cmake -S native -B build/native-android -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
@@ -90,7 +113,7 @@ jobs:
 
   package:
     name: package (one JAR, every platform)
-    needs: [desktop, android]
+    needs: [core-kit, desktop, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +140,7 @@ jobs:
           done
       - name: Smoke test the packaged JAR against the fake platform
         run: |
-          python3 native/apex-sdk-core/tools/smoke/fake_apex.py run -- \
+          python3 native/apex-sdk-core/testkit/tools/smoke/fake_apex.py run -- \
             java -cp "$JAR:build/classes/java/test" com.pixovr.apex.SmokeTest
       - uses: actions/upload-artifact@v4
         with:

@@ -47,17 +47,14 @@ dependencies {
 
 def nativesDirectory = layout.buildDirectory.dir('natives')
 
-// The core's sources are not in this repository. Point the build at an
-// apex-sdk-core checkout or source release with -PapexCoreDir=... or the
-// APEX_CORE_DIR environment variable. Builds from prebuilt libraries
-// (-PprebuiltNatives) need it only for the smoke tests' fake platform.
-def apexCoreDirectory = {
-    def coreDirectory = project.findProperty('apexCoreDir') ?: System.getenv('APEX_CORE_DIR')
-    if (!coreDirectory) {
-        throw new GradleException('Set -PapexCoreDir (or APEX_CORE_DIR) to an apex-sdk-core checkout or source release.')
-    }
-    return file(coreDirectory)
-}
+// The core is in this repository in compiled form only (native/apex-sdk-core,
+// see tools/update_core.sh). -PapexCoreDir=... or APEX_CORE_DIR points the
+// build at an apex-sdk-core checkout instead, which builds the core from
+// source and takes the smoke tests' fake platform from it.
+def apexCoreSourceDirectory = project.findProperty('apexCoreDir') ?: System.getenv('APEX_CORE_DIR')
+def fakePlatformScript = apexCoreSourceDirectory
+    ? new File(file(apexCoreSourceDirectory), 'tools/smoke/fake_apex.py')
+    : file('native/apex-sdk-core/testkit/tools/smoke/fake_apex.py')
 def hostBuildDirectory = layout.buildDirectory.dir('native-host')
 
 static String desktopPlatform() {
@@ -90,8 +87,8 @@ def configureHostNatives = tasks.register('configureHostNatives', Exec) {
     description = 'Configures the native library build for this machine (needs CMake, a C++ compiler and a JDK).'
     def cmakeArguments = ['cmake', '-S', file('native').absolutePath, '-B', hostBuildDirectory.get().asFile.absolutePath,
                           '-DCMAKE_BUILD_TYPE=Release']
-    doFirst {
-        args "-DAPEX_CORE_DIR=${apexCoreDirectory().absolutePath}"
+    if (apexCoreSourceDirectory) {
+        cmakeArguments += ["-DAPEX_CORE_DIR=${file(apexCoreSourceDirectory).absolutePath}"]
     }
     if (desktopPlatform() == 'macos') {
         cmakeArguments += ['-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0']
@@ -131,6 +128,10 @@ def checkNatives = tasks.register('checkNatives') {
 // Into the main JAR only, not the sources JAR.
 tasks.named('processResources') {
     from(nativesDirectory)
+    from('native/apex-sdk-core/THIRD_PARTY_NOTICES.md') {
+        into 'META-INF'
+        rename { 'apex-sdk-core-THIRD_PARTY_NOTICES.md' }
+    }
     if (project.hasProperty('prebuiltNatives')) {
         dependsOn checkNatives
     } else {
@@ -157,7 +158,7 @@ tasks.named('test') {
         dependsOn tasks.named('testClasses')
         def python = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows') ? 'python' : 'python3'
         doFirst {
-            commandLine([python, new File(apexCoreDirectory(), 'tools/smoke/fake_apex.py').absolutePath] + fakeOptions +
+            commandLine([python, fakePlatformScript.absolutePath] + fakeOptions +
                 ['run', '--', "${System.getProperty('java.home')}/bin/java", '-cp',
                  sourceSets.test.runtimeClasspath.asPath, 'com.pixovr.apex.SmokeTest'])
         }

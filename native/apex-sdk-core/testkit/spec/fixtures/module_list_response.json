@@ -1,0 +1,67 @@
+{
+  "data": {
+    "user": {
+      "modules": [
+        {
+          "id": "42",
+          "abbreviation": "FLB",
+          "externalId": "forklift-basic",
+          "imageLink": "https://example.com/forklift.png",
+          "developer": "PixoVR",
+          "description": "Forklift Basics",
+          "shortDesc": "Learn to operate a forklift",
+          "longDesc": "A longer description of the forklift course.",
+          "industry": "warehousing",
+          "details": "Details",
+          "categories": "Safety",
+          "isAvailable": true,
+          "isAuthenticatedLaunch": true,
+          "availableLanguages": [ { "displayName": "English" }, { "displayName": "Spanish" } ],
+          "modulePlayer": {
+            "id": "3",
+            "name": "Pixo Player",
+            "launchProtocol": "pixoplayer",
+            "versions": [
+              { "id": "30", "version": "2.1.0", "status": "released", "package": "com.pixovr.player",
+                "platforms": [ { "id": "1", "name": "Android", "shortName": "android" } ] },
+              { "id": "31", "version": "2.1.0", "status": "released", "package": null,
+                "platforms": [ { "id": "2", "name": "Windows", "shortName": "windows" } ] }
+            ]
+          },
+          "versions": [
+            { "id": "100", "version": "1.4.0", "package": "com.pixovr.forklift", "createdAt": "2026-09-01T10:00:00Z",
+              "controls": [ { "id": "1", "name": "Controllers" }, { "id": "2", "name": "Hand tracking" } ],
+              "platforms": [ { "id": "1", "name": "Android", "shortName": "android" } ],
+              "lifecycle": { "id": "1", "name": "Released" } },
+            { "id": "101", "version": "1.4.0", "package": null, "createdAt": "2026-09-01T10:00:00Z",
+              "controls": [ { "id": "1", "name": "Controllers" } ],
+              "platforms": [ { "id": "2", "name": "Windows", "shortName": "windows" } ],
+              "lifecycle": { "id": "1", "name": "Released" } }
+          ]
+        },
+        {
+          "id": "43",
+          "abbreviation": "CRN",
+          "externalId": "crane",
+          "imageLink": null,
+          "developer": "PixoVR",
+          "description": "Crane Safety",
+          "shortDesc": null,
+          "longDesc": null,
+          "industry": null,
+          "details": null,
+          "categories": null,
+          "isAvailable": false,
+          "isAuthenticatedLaunch": null,
+          "availableLanguages": [],
+          "modulePlayer": null,
+          "versions": [
+            { "id": "200", "version": "0.9.0", "package": null, "createdAt": "2026-08-01T10:00:00Z",
+              "controls": [], "platforms": [ { "id": "2", "name": "Windows", "shortName": null } ],
+              "lifecycle": { "id": "2", "name": "Development" } }
+          ]
+        }
+      ]
+    }
+  }
+}

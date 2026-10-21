@@ -6,9 +6,13 @@ Read `README.md` for the layout, build and release.
 
 ## Rules
 
-- The core's sources are not in this repository and must not be added back.
-  Builds take them from `-PapexCoreDir` / `APEX_CORE_DIR` (an apex-sdk-core
-  checkout or source release).
+- The core is in this repository in compiled form only: `native/apex-sdk-core/`
+  holds `Apex.h`, one static library per platform and the smoke-test kit, from
+  apex-sdk-core's `java-kit` CI job. Never commit the core's sources
+  (`.cpp`, `.hpp`, `src/`, `third_party/`); CI's `core-kit` job rejects them.
+  Update the kit only with `tools/update_core.sh`, never by hand.
+- `-PapexCoreDir` / `APEX_CORE_DIR` builds against an apex-sdk-core checkout
+  instead, for testing an unreleased core; nothing else needs it.
 - Java follows the usual Java conventions, with descriptive names (no single
   letters or abbreviations). It compiles to Java 8 bytecode and must run on
   Android API 24: no `java.nio.file`, `java.time` or other APIs Android 7
@@ -23,6 +27,6 @@ Read `README.md` for the layout, build and release.
 ## Checking
 
 ```sh
-./gradlew build -PapexCoreDir=../apex-sdk-core  # compiles with -Werror, unit tests, smoke tests
+./gradlew build  # compiles with -Werror, unit tests, smoke tests
 clang-format --dry-run --Werror native/src/*.c
 ```
