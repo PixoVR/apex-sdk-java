@@ -1,0 +1,14 @@
+{
+  "Token": "quick-token",
+  "Msg": "ok",
+  "User": {
+    "Id": 513,
+    "FirstName": "Grace",
+    "LastName": "Hopper",
+    "Username": "ghopper",
+    "Email": "grace@example.com",
+    "Role": "user",
+    "OrgId": 7,
+    "Org": { "ID": 7, "Name": "Example Org", "Type": "customer" }
+  }
+}

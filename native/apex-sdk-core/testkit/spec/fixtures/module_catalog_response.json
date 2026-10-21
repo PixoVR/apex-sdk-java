@@ -1,0 +1,188 @@
+{
+  "data": {
+    "user": {
+      "modules": [
+        {
+          "id": "7",
+          "description": "bravo",
+          "isAvailable": true,
+          "modulePlayer": null,
+          "versions": [
+            {
+              "id": "70",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": "2026-05-01T00:00:00Z",
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "1",
+                  "name": "Android",
+                  "shortName": "android"
+                }
+              ],
+              "lifecycle": {
+                "id": "1",
+                "name": "Released"
+              }
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "description": "Alpha",
+          "isAvailable": true,
+          "modulePlayer": null,
+          "versions": [
+            {
+              "id": "30",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": "2026-09-01T00:00:00Z",
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "1",
+                  "name": "Android",
+                  "shortName": "android"
+                }
+              ],
+              "lifecycle": {
+                "id": "2",
+                "name": "Development"
+              }
+            },
+            {
+              "id": "31",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": "2026-01-01T00:00:00Z",
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "1",
+                  "name": "Android",
+                  "shortName": "android"
+                }
+              ],
+              "lifecycle": {
+                "id": "1",
+                "name": "Released"
+              }
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "description": "Charlie",
+          "isAvailable": true,
+          "modulePlayer": null,
+          "versions": [
+            {
+              "id": "90",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": "2026-12-01T00:00:00Z",
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "1",
+                  "name": "Android",
+                  "shortName": "android"
+                }
+              ],
+              "lifecycle": {
+                "id": "5",
+                "name": "Archived"
+              }
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "description": "delta",
+          "isAvailable": true,
+          "modulePlayer": null,
+          "versions": [
+            {
+              "id": "50",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": "2026-10-01T00:00:00Z",
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "1",
+                  "name": "Android",
+                  "shortName": "android"
+                }
+              ],
+              "lifecycle": {
+                "id": "8",
+                "name": "Beta"
+              }
+            },
+            {
+              "id": "51",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": null,
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "2",
+                  "name": "Windows",
+                  "shortName": "windows"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "description": null,
+          "isAvailable": true,
+          "modulePlayer": null,
+          "versions": [
+            {
+              "id": "10",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": "2026-02-01T00:00:00Z",
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "1",
+                  "name": "Android",
+                  "shortName": "android"
+                }
+              ],
+              "lifecycle": {
+                "id": "3",
+                "name": "QA"
+              }
+            },
+            {
+              "id": "11",
+              "version": "1.0.0",
+              "package": null,
+              "createdAt": null,
+              "controls": [],
+              "platforms": [
+                {
+                  "id": "2",
+                  "name": "Windows",
+                  "shortName": "windows"
+                }
+              ],
+              "lifecycle": {
+                "id": "4",
+                "name": "uat"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

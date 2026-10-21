@@ -1,0 +1,11 @@
+{
+  "User": {
+    "ID": 512,
+    "OrgId": 7,
+    "First": "Ada",
+    "Last": "Lovelace",
+    "Email": "ada@example.com",
+    "Role": "user",
+    "Org": { "ID": 7, "Name": "Example Org", "Type": "customer" }
+  }
+}

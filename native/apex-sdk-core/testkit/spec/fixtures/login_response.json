@@ -1,0 +1,20 @@
+{
+  "ID": 512,
+  "OrgId": 7,
+  "First": "Ada",
+  "Last": "Lovelace",
+  "Email": "ada@example.com",
+  "Token": "token-abc",
+  "Role": "user",
+  "MinimumPassingScore": 70,
+  "Org": {
+    "ID": 7,
+    "Name": "Example Org",
+    "Status": "active",
+    "DownloadRegion": "us",
+    "Type": "customer",
+    "HubLogoLink": "https://example.com/logo.png",
+    "PrimaryColor": "#112233",
+    "SecondaryColor": "#445566"
+  }
+}

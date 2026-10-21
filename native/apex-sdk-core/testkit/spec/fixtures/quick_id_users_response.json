@@ -1,0 +1,12 @@
+{
+  "OrgProperties": {
+    "PrimaryColor": "#112233",
+    "SecondaryColor": "#445566",
+    "HubLogoURL": "https://example.com/logo.png",
+    "OrgName": "Example Org"
+  },
+  "QuickIDUsers": [
+    { "FirstName": "Ada", "LastName": "Lovelace", "Username": "ada", "Email": "ada@example.com" },
+    { "FirstName": "Grace", "LastName": "Hopper", "Username": "ghopper", "Email": "grace@example.com" }
+  ]
+}
